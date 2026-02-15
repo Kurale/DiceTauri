@@ -1,0 +1,204 @@
+const topicInputs = Array.from(document.querySelectorAll('.checkbox input[type="checkbox"]'));
+const countInput = document.getElementById('count');
+const variantsInput = document.getElementById('variants');
+const operationMode = document.getElementById('operationMode');
+const output = document.getElementById('output');
+const generateBtn = document.getElementById('generateBtn');
+const copyBtn = document.getElementById('copyBtn');
+
+function randInt(min, max) {
+  return Math.floor(Math.random() * (max - min + 1)) + min;
+}
+
+function gcd(a, b) {
+  let x = Math.abs(a);
+  let y = Math.abs(b);
+  while (y !== 0) {
+    [x, y] = [y, x % y];
+  }
+  return x || 1;
+}
+
+function reduceFraction(frac) {
+  const g = gcd(frac.n, frac.d);
+  const sign = frac.d < 0 ? -1 : 1;
+  return { n: sign * frac.n / g, d: sign * frac.d / g };
+}
+
+function toImproper(num) {
+  if (num.type === 'fraction') {
+    return { n: num.n, d: num.d };
+  }
+  return {
+    n: num.whole * num.d + num.n,
+    d: num.d,
+  };
+}
+
+function randomFraction({ maxDen = 12, maxNum = 12 } = {}) {
+  const d = randInt(2, maxDen);
+  const n = randInt(1, Math.min(maxNum, d * 2));
+  return reduceFraction({ n, d });
+}
+
+function randomMixed({ maxWhole = 9, maxDen = 12 } = {}) {
+  const whole = randInt(1, maxWhole);
+  const d = randInt(2, maxDen);
+  const n = randInt(1, d - 1);
+  return { type: 'mixed', whole, n, d };
+}
+
+function randomWhole(max = 9) {
+  return { type: 'whole', value: randInt(1, max) };
+}
+
+function asNumberObject(kind) {
+  if (kind === 'fraction') {
+    const f = randomFraction();
+    return { type: 'fraction', n: f.n, d: f.d };
+  }
+  if (kind === 'mixed') {
+    return randomMixed({});
+  }
+  return randomWhole();
+}
+
+function formatNumberHtml(num) {
+  if (num.type === 'whole') {
+    return `<span>${num.value}</span>`;
+  }
+
+  if (num.type === 'fraction') {
+    return `<span class="frac"><span class="numerator">${num.n}</span><span class="bar"></span><span class="denominator">${num.d}</span></span>`;
+  }
+
+  return `<span class="mixed"><span>${num.whole}</span><span class="frac"><span class="numerator">${num.n}</span><span class="bar"></span><span class="denominator">${num.d}</span></span></span>`;
+}
+
+function pickOperation(allowed) {
+  return allowed[randInt(0, allowed.length - 1)];
+}
+
+function allowedOpsForTopic(topic) {
+  const mode = operationMode.value;
+  const topicOps = {
+    fractions_add_sub: ['+', '−'],
+    mixed_add_sub: ['+', '−'],
+    fractions_mul: ['×'],
+    mixed_mul: ['×'],
+    fractions_div: [':'],
+    mixed_div: [':'],
+  };
+
+  if (mode === 'auto') return topicOps[topic];
+  if (mode === 'all') return ['+', '−', '×', ':'];
+  if (mode === 'addsub') return ['+', '−'];
+  return ['×', ':'];
+}
+
+function generateByTopic(topic) {
+  let leftType = 'fraction';
+  let rightType = 'fraction';
+
+  if (topic === 'mixed_add_sub' || topic === 'mixed_mul' || topic === 'mixed_div') {
+    leftType = randInt(0, 100) < 85 ? 'mixed' : 'whole';
+    rightType = randInt(0, 100) < 85 ? 'mixed' : 'whole';
+  }
+
+  if (topic === 'fractions_add_sub' && randInt(0, 100) < 25) {
+    rightType = 'whole';
+  }
+
+  const left = asNumberObject(leftType);
+  const right = asNumberObject(rightType);
+  const op = pickOperation(allowedOpsForTopic(topic));
+
+  if (op === '−') {
+    const leftImp = left.type === 'whole' ? { n: left.value, d: 1 } : toImproper(left);
+    const rightImp = right.type === 'whole' ? { n: right.value, d: 1 } : toImproper(right);
+
+    if (leftImp.n * rightImp.d < rightImp.n * leftImp.d) {
+      return { left: right, op, right: left };
+    }
+  }
+
+  if (op === ':' && right.type === 'fraction' && right.n === 0) {
+    right.n = 1;
+  }
+
+  return { left, op, right };
+}
+
+function buildExampleHtml(index, ex) {
+  return `<div class="example">
+    <span>${index})</span>
+    ${formatNumberHtml(ex.left)}
+    <span>${ex.op}</span>
+    ${formatNumberHtml(ex.right)}
+    <span>=</span>
+    <span class="blank"></span>
+  </div>`;
+}
+
+function render() {
+  const selectedTopics = topicInputs.filter((i) => i.checked).map((i) => i.value);
+  const count = Math.max(1, Math.min(120, Number(countInput.value) || 1));
+  const variants = Math.max(1, Math.min(12, Number(variantsInput.value) || 1));
+
+  if (!selectedTopics.length) {
+    output.innerHTML = '<div class="variant"><p>Выберите хотя бы один тип примеров.</p></div>';
+    return;
+  }
+
+  let html = '';
+
+  for (let v = 1; v <= variants; v += 1) {
+    let examplesHtml = '';
+    for (let i = 1; i <= count; i += 1) {
+      const topic = selectedTopics[randInt(0, selectedTopics.length - 1)];
+      const ex = generateByTopic(topic);
+      examplesHtml += buildExampleHtml(i, ex);
+    }
+
+    html += `<article class="variant"><h3>Вариант ${v}</h3><div class="examples">${examplesHtml}</div></article>`;
+  }
+
+  output.innerHTML = html;
+}
+
+async function copyHtml() {
+  if (!output.innerHTML.trim()) {
+    render();
+  }
+
+  const exportStyles = `
+    body { font-family: "Times New Roman", serif; color: #111827; }
+    .variant { margin-bottom: 20px; }
+    .examples { display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 10px 20px; }
+    .example { display: flex; align-items: center; gap: 8px; font-size: 28px; line-height: 1; }
+    .frac { display: inline-flex; flex-direction: column; align-items: center; min-width: 1.7em; }
+    .frac .numerator, .frac .denominator { display: block; padding: 0 0.2em; text-align: center; }
+    .frac .bar { display: block; width: 100%; border-top: 2px solid #111827; margin: 0.06em 0; }
+    .mixed { display: inline-flex; align-items: center; gap: 0.18em; }
+    .blank { display: inline-block; border-bottom: 2px solid #9ca3af; width: 4.4em; margin-left: 4px; }
+  `;
+  const printable = `<!doctype html><html lang="ru"><head><meta charset="UTF-8"><title>Примеры по дробям</title><style>${exportStyles}</style></head><body>${output.innerHTML}</body></html>`;
+
+  try {
+    await navigator.clipboard.writeText(printable);
+    copyBtn.textContent = 'Скопировано!';
+    setTimeout(() => {
+      copyBtn.textContent = 'Копировать HTML';
+    }, 1300);
+  } catch (e) {
+    copyBtn.textContent = 'Не удалось скопировать';
+    setTimeout(() => {
+      copyBtn.textContent = 'Копировать HTML';
+    }, 1300);
+  }
+}
+
+generateBtn.addEventListener('click', render);
+copyBtn.addEventListener('click', copyHtml);
+
+render();
