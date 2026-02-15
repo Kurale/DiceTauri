@@ -166,39 +166,167 @@ function render() {
   output.innerHTML = html;
 }
 
-async function copyHtml() {
+// Helper: Calculate width of a number for SVG positioning
+function measureNumber(num) {
+  if (num.type === 'whole') {
+    return String(num.value).length * 0.6;
+  }
+  if (num.type === 'fraction') {
+    const numWidth = String(num.n).length * 0.6;
+    const denWidth = String(num.d).length * 0.6;
+    return Math.max(numWidth, denWidth) + 0.4;
+  }
+  // mixed
+  const wholeWidth = String(num.whole).length * 0.6;
+  const numWidth = String(num.n).length * 0.6;
+  const denWidth = String(num.d).length * 0.6;
+  return wholeWidth + 0.2 + Math.max(numWidth, denWidth) + 0.4;
+}
+
+// Helper: Draw a number in SVG, returns width used
+function drawNumber(num, x, y, fontSize, elements) {
+  if (num.type === 'whole') {
+    elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${num.value}</text>`);
+    return String(num.value).length * 0.6 * fontSize / 28;
+  }
+
+  if (num.type === 'fraction') {
+    const numWidth = String(num.n).length * 0.6;
+    const denWidth = String(num.d).length * 0.6;
+    const width = Math.max(numWidth, denWidth) * fontSize / 28;
+    const numY = y - fontSize * 0.25;
+    const denY = y + fontSize * 0.5;
+    const barY = y + fontSize * 0.05;
+
+    elements.push(`<text x="${x + width / 2}" y="${numY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.n}</text>`);
+    elements.push(`<line x1="${x}" y1="${barY}" x2="${x + width}" y2="${barY}" stroke="#111827" stroke-width="${fontSize * 0.07}"/>`);
+    elements.push(`<text x="${x + width / 2}" y="${denY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.d}</text>`);
+    return width + 0.4 * fontSize / 28;
+  }
+
+  // mixed
+  const wholeWidth = String(num.whole).length * 0.6 * fontSize / 28;
+  elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${num.whole}</text>`);
+
+  const fracX = x + wholeWidth + 0.2 * fontSize / 28;
+  const numWidth = String(num.n).length * 0.6;
+  const denWidth = String(num.d).length * 0.6;
+  const width = Math.max(numWidth, denWidth) * fontSize / 28;
+  const numY = y - fontSize * 0.25;
+  const denY = y + fontSize * 0.5;
+  const barY = y + fontSize * 0.05;
+
+  elements.push(`<text x="${fracX + width / 2}" y="${numY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.n}</text>`);
+  elements.push(`<line x1="${fracX}" y1="${barY}" x2="${fracX + width}" y2="${barY}" stroke="#111827" stroke-width="${fontSize * 0.07}"/>`);
+  elements.push(`<text x="${fracX + width / 2}" y="${denY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.d}</text>`);
+
+  return wholeWidth + 0.2 * fontSize / 28 + width + 0.4 * fontSize / 28;
+}
+
+function generateExampleSvg(example, index, fontSize) {
+  const gap = 0.4 * fontSize / 28;
+  let x = 0;
+  const y = fontSize;
+
+  const elements = [];
+
+  // Index number
+  const indexText = `${index})`;
+  elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${indexText}</text>`);
+  x += String(index).length * 0.6 * fontSize / 28 + 1.5 * fontSize / 28;
+
+  // Left operand
+  x += drawNumber(example.left, x, y, fontSize, elements);
+
+  // Operator
+  const opSymbol = example.op;
+  elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${opSymbol}</text>`);
+  x += 1.2 * fontSize / 28;
+
+  // Right operand
+  x += drawNumber(example.right, x, y, fontSize, elements);
+
+  // Equals
+  elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">=</text>`);
+  x += 1.2 * fontSize / 28;
+
+  // Blank line for answer
+  const blankWidth = 4.4 * fontSize / 28;
+  elements.push(`<line x1="${x}" y1="${y + fontSize * 0.3}" x2="${x + blankWidth}" y2="${y + fontSize * 0.3}" stroke="#9ca3af" stroke-width="${fontSize * 0.07}"/>`);
+
+  return { elements, width: x + blankWidth + gap };
+}
+
+async function copySvg() {
   if (!output.innerHTML.trim()) {
     render();
   }
 
-  const exportStyles = `
-    body { font-family: "Times New Roman", serif; color: #111827; }
-    .variant { margin-bottom: 20px; }
-    .examples { display: grid; grid-template-columns: repeat(2, minmax(320px, 1fr)); gap: 10px 20px; }
-    .example { display: flex; align-items: center; gap: 8px; font-size: 28px; line-height: 1; }
-    .frac { display: inline-flex; flex-direction: column; align-items: center; min-width: 1.7em; }
-    .frac .numerator, .frac .denominator { display: block; padding: 0 0.2em; text-align: center; }
-    .frac .bar { display: block; width: 100%; border-top: 2px solid #111827; margin: 0.06em 0; }
-    .mixed { display: inline-flex; align-items: center; gap: 0.18em; }
-    .blank { display: inline-block; border-bottom: 2px solid #9ca3af; width: 4.4em; margin-left: 4px; }
-  `;
-  const printable = `<!doctype html><html lang="ru"><head><meta charset="UTF-8"><title>Примеры по дробям</title><style>${exportStyles}</style></head><body>${output.innerHTML}</body></html>`;
+  const selectedTopics = topicInputs.filter((i) => i.checked).map((i) => i.value);
+  const count = Math.max(1, Math.min(120, Number(countInput.value) || 1));
+  const variants = Math.max(1, Math.min(12, Number(variantsInput.value) || 1));
+
+  const fontSize = 28;
+  const colWidth = 450;
+  const rowHeight = 70;
+  const padding = 30;
+  const headerHeight = 50;
+
+  const svgs = [];
+
+  for (let v = 1; v <= variants; v += 1) {
+    const examples = [];
+    for (let i = 1; i <= count; i += 1) {
+      const topic = selectedTopics[randInt(0, selectedTopics.length - 1)];
+      examples.push(generateByTopic(topic));
+    }
+
+    const cols = 2;
+    const rows = Math.ceil(count / cols);
+    const width = colWidth * cols + padding * 2;
+    const height = headerHeight + rows * rowHeight + padding;
+
+    let svgContent = '';
+
+    // Header
+    svgContent += `<text x="${padding}" y="${padding + fontSize}" font-family="Times New Roman, serif" font-size="${fontSize * 1.2}" font-weight="bold" fill="#111827">Вариант ${v}</text>`;
+
+    // Examples
+    examples.forEach((ex, i) => {
+      const col = i % cols;
+      const row = Math.floor(i / cols);
+      const x = padding + col * colWidth;
+      const y = headerHeight + padding + row * rowHeight;
+
+      const { elements } = generateExampleSvg(ex, i + 1, fontSize);
+      svgContent += elements.map(el => el.replace(/x="([^"]+)"/, `x="${x + parseFloat(el.match(/x="([^"]+)"/)?.[1] || 0) - (col === 0 ? 0 : 0)}"`).replace(/y="([^"]+)"/, `y="${y + (parseFloat(el.match(/y="([^"]+)"/)?.[1] || 0) - fontSize)}"`)).join('');
+    });
+
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect width="100%" height="100%" fill="#ffffff"/>
+      ${svgContent}
+    </svg>`;
+
+    svgs.push(svg);
+  }
+
+  const svgOutput = variants === 1 ? svgs[0] : svgs.join('\n\n');
 
   try {
-    await navigator.clipboard.writeText(printable);
+    await navigator.clipboard.writeText(svgOutput);
     copyBtn.textContent = 'Скопировано!';
     setTimeout(() => {
-      copyBtn.textContent = 'Копировать HTML';
+      copyBtn.textContent = 'Копировать SVG';
     }, 1300);
   } catch (e) {
     copyBtn.textContent = 'Не удалось скопировать';
     setTimeout(() => {
-      copyBtn.textContent = 'Копировать HTML';
+      copyBtn.textContent = 'Копировать SVG';
     }, 1300);
   }
 }
 
 generateBtn.addEventListener('click', render);
-copyBtn.addEventListener('click', copyHtml);
+copyBtn.addEventListener('click', copySvg);
 
 render();
