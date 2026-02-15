@@ -75,6 +75,7 @@ select {
   margin-top: 14px;
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
 }
 
 button {
@@ -111,16 +112,33 @@ button {
 .examples {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
-  gap: 20px 40px;
+  gap: 14px 28px;
+}
+
+
+.example-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pick {
+  display: inline-flex;
+  align-items: center;
+}
+
+.pick input {
+  width: 20px;
+  height: 20px;
+  margin: 0;
 }
 
 .example {
   display: flex;
   align-items: center;
   gap: 8px;
-  line-height: 1.2;
+  line-height: 1;
   font-size: 28px;
-  padding: 6px 0;
 }
 
 .frac {
@@ -157,14 +175,6 @@ button {
   margin-left: 4px;
 }
 
-.example-checkbox {
-  margin-left: 12px;
-  width: 18px;
-  height: 18px;
-  cursor: pointer;
-  flex-shrink: 0;
-}
-
 @media print {
   body {
     background: #fff;
@@ -183,9 +193,5 @@ button {
     box-shadow: none;
     border: none;
     page-break-after: always;
-  }
-
-  .example-checkbox {
-    display: none;
   }
 }

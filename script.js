@@ -4,12 +4,12 @@ const variantsInput = document.getElementById('variants');
 const operationMode = document.getElementById('operationMode');
 const output = document.getElementById('output');
 const generateBtn = document.getElementById('generateBtn');
-const copyBtn = document.getElementById('copyBtn');
-const toggleAllBtn = document.getElementById('toggleAllBtn');
+const copySvgBtn = document.getElementById('copySvgBtn');
+const downloadSvgBtn = document.getElementById('downloadSvgBtn');
+const selectAllBtn = document.getElementById('selectAllBtn');
+const clearSelectionBtn = document.getElementById('clearSelectionBtn');
 
-let currentVariant = 0;
-let allSelected = true;
-const generatedExamples = {}; // Хранилище сгенерированных примеров: { "variant-index": example }
+let generated = [];
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -127,22 +127,23 @@ function generateByTopic(topic) {
     }
   }
 
-  if (op === ':' && right.type === 'fraction' && right.n === 0) {
-    right.n = 1;
-  }
-
   return { left, op, right };
 }
 
-function buildExampleHtml(index, ex) {
-  return `<div class="example">
-    <span>${index})</span>
-    ${formatNumberHtml(ex.left)}
-    <span>${ex.op}</span>
-    ${formatNumberHtml(ex.right)}
-    <span>=</span>
-    <span class="blank"></span>
-    <input type="checkbox" class="example-checkbox" data-variant="${currentVariant}" data-index="${index}" checked />
+function buildExampleHtml(variantIndex, index, ex) {
+  return `<div class="example-row">
+    <label class="pick">
+      <input class="example-pick" type="checkbox" data-variant="${variantIndex}" data-index="${index}" checked />
+      <span></span>
+    </label>
+    <div class="example">
+      <span>${index + 1})</span>
+      ${formatNumberHtml(ex.left)}
+      <span>${ex.op}</span>
+      ${formatNumberHtml(ex.right)}
+      <span>=</span>
+      <span class="blank"></span>
+    </div>
   </div>`;
 }
 
@@ -151,234 +152,205 @@ function render() {
   const count = Math.max(1, Math.min(120, Number(countInput.value) || 1));
   const variants = Math.max(1, Math.min(12, Number(variantsInput.value) || 1));
 
-  // Reset toggle button state and clear storage
-  allSelected = true;
-  toggleAllBtn.textContent = 'Снять выделение';
-  Object.keys(generatedExamples).forEach(key => delete generatedExamples[key]);
-
   if (!selectedTopics.length) {
     output.innerHTML = '<div class="variant"><p>Выберите хотя бы один тип примеров.</p></div>';
+    generated = [];
     return;
   }
 
+  generated = [];
   let html = '';
 
-  for (let v = 1; v <= variants; v += 1) {
-    currentVariant = v;
+  for (let v = 0; v < variants; v += 1) {
     let examplesHtml = '';
-    for (let i = 1; i <= count; i += 1) {
+    const examples = [];
+
+    for (let i = 0; i < count; i += 1) {
       const topic = selectedTopics[randInt(0, selectedTopics.length - 1)];
       const ex = generateByTopic(topic);
-      // Сохраняем пример для экспорта
-      generatedExamples[`${v}-${i}`] = ex;
-      examplesHtml += buildExampleHtml(i, ex);
+      examples.push(ex);
+      examplesHtml += buildExampleHtml(v, i, ex);
     }
 
-    html += `<article class="variant"><h3>Вариант ${v}</h3><div class="examples">${examplesHtml}</div></article>`;
+    generated.push({ variantNumber: v + 1, examples });
+    html += `<article class="variant"><h3>Вариант ${v + 1}</h3><div class="examples">${examplesHtml}</div></article>`;
   }
 
   output.innerHTML = html;
 }
 
-// Helper: Calculate width of a number for SVG positioning
-function measureNumber(num) {
+function getSelectedExamples() {
+  const picks = Array.from(document.querySelectorAll('.example-pick:checked'));
+  return picks
+    .map((pick) => {
+      const variant = Number(pick.dataset.variant);
+      const index = Number(pick.dataset.index);
+      const variantData = generated[variant];
+      if (!variantData || !variantData.examples[index]) return null;
+      return {
+        variantNumber: variantData.variantNumber,
+        index: index + 1,
+        example: variantData.examples[index],
+      };
+    })
+    .filter(Boolean);
+}
+
+function estimateTextWidth(text, fontSize = 32) {
+  return Math.max(20, text.length * (fontSize * 0.56));
+}
+
+function svgEscape(text) {
+  return String(text)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;');
+}
+
+function drawNumberSvg(num, x, yTop) {
+  const font = 32;
+
   if (num.type === 'whole') {
-    return String(num.value).length * 0.6;
-  }
-  if (num.type === 'fraction') {
-    const numWidth = String(num.n).length * 0.6;
-    const denWidth = String(num.d).length * 0.6;
-    return Math.max(numWidth, denWidth) + 0.4;
-  }
-  // mixed
-  const wholeWidth = String(num.whole).length * 0.6;
-  const numWidth = String(num.n).length * 0.6;
-  const denWidth = String(num.d).length * 0.6;
-  return wholeWidth + 0.2 + Math.max(numWidth, denWidth) + 0.4;
-}
-
-// Helper: Draw a number in SVG, returns width used
-function drawNumber(num, baseX, baseY, fontSize, elements) {
-  if (num.type === 'whole') {
-    elements.push(`<text x="${baseX}" y="${baseY}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${num.value}</text>`);
-    return String(num.value).length * fontSize * 0.55;
+    const text = String(num.value);
+    const width = estimateTextWidth(text, font);
+    const svg = `<text x="${x}" y="${yTop + 45}" font-size="${font}" font-family="Times New Roman">${svgEscape(text)}</text>`;
+    return { width, svg };
   }
 
   if (num.type === 'fraction') {
-    const numWidth = String(num.n).length * fontSize * 0.5;
-    const denWidth = String(num.d).length * fontSize * 0.5;
-    const width = Math.max(numWidth, denWidth) + fontSize * 0.2;
-    const numY = baseY - fontSize * 0.25;
-    const denY = baseY + fontSize * 0.5;
-    const barY = baseY + fontSize * 0.05;
-
-    elements.push(`<text x="${baseX + width / 2}" y="${numY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.n}</text>`);
-    elements.push(`<line x1="${baseX}" y1="${barY}" x2="${baseX + width}" y2="${barY}" stroke="#111827" stroke-width="${fontSize * 0.07}"/>`);
-    elements.push(`<text x="${baseX + width / 2}" y="${denY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.d}</text>`);
-    return width;
+    const top = String(num.n);
+    const bottom = String(num.d);
+    const fracWidth = Math.max(estimateTextWidth(top, 24), estimateTextWidth(bottom, 24), 40);
+    const center = x + fracWidth / 2;
+    const svg = `
+      <text x="${center}" y="${yTop + 20}" font-size="24" text-anchor="middle" font-family="Times New Roman">${svgEscape(top)}</text>
+      <line x1="${x}" y1="${yTop + 32}" x2="${x + fracWidth}" y2="${yTop + 32}" stroke="#111827" stroke-width="2" />
+      <text x="${center}" y="${yTop + 58}" font-size="24" text-anchor="middle" font-family="Times New Roman">${svgEscape(bottom)}</text>
+    `;
+    return { width: fracWidth, svg };
   }
 
-  // mixed
-  const wholeWidth = String(num.whole).length * fontSize * 0.55;
-  elements.push(`<text x="${baseX}" y="${baseY}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${num.whole}</text>`);
-
-  const fracX = baseX + wholeWidth + fontSize * 0.15;
-  const numWidth = String(num.n).length * fontSize * 0.5;
-  const denWidth = String(num.d).length * fontSize * 0.5;
-  const width = Math.max(numWidth, denWidth) + fontSize * 0.2;
-  const numY = baseY - fontSize * 0.25;
-  const denY = baseY + fontSize * 0.5;
-  const barY = baseY + fontSize * 0.05;
-
-  elements.push(`<text x="${fracX + width / 2}" y="${numY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.n}</text>`);
-  elements.push(`<line x1="${fracX}" y1="${barY}" x2="${fracX + width}" y2="${barY}" stroke="#111827" stroke-width="${fontSize * 0.07}"/>`);
-  elements.push(`<text x="${fracX + width / 2}" y="${denY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.d}</text>`);
-
-  return wholeWidth + fontSize * 0.15 + width;
+  const wholeText = String(num.whole);
+  const wholeWidth = estimateTextWidth(wholeText, font);
+  const frac = drawNumberSvg({ type: 'fraction', n: num.n, d: num.d }, x + wholeWidth + 10, yTop);
+  const svg = `<text x="${x}" y="${yTop + 45}" font-size="${font}" font-family="Times New Roman">${svgEscape(wholeText)}</text>${frac.svg}`;
+  return { width: wholeWidth + 10 + frac.width, svg };
 }
 
-function generateExampleSvg(example, index, fontSize, baseX, baseY) {
-  const gap = fontSize * 0.3;
-  let x = baseX;
-  const y = baseY;
+function selectedExamplesToSvg(selected) {
+  const sheetWidth = 1480;
+  const margin = 40;
+  const colWidth = 690;
+  const rowHeight = 88;
+  const titleHeight = 52;
 
-  const elements = [];
+  const grouped = new Map();
+  for (const item of selected) {
+    if (!grouped.has(item.variantNumber)) {
+      grouped.set(item.variantNumber, []);
+    }
+    grouped.get(item.variantNumber).push(item);
+  }
 
-  // Index number
-  const indexText = `${index})`;
-  const indexWidth = String(index).length * fontSize * 0.55;
-  elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${indexText}</text>`);
-  x += indexWidth + gap;
+  let y = margin;
+  let content = '';
 
-  // Left operand
-  const leftWidth = drawNumber(example.left, x, y, fontSize, elements);
-  x += leftWidth + gap;
+  const variants = Array.from(grouped.entries()).sort((a, b) => a[0] - b[0]);
+  for (const [variantNumber, rows] of variants) {
+    content += `<text x="${margin}" y="${y}" font-size="34" font-family="Times New Roman" font-weight="bold">Вариант ${variantNumber}</text>`;
+    y += titleHeight;
 
-  // Operator
-  const opSymbol = example.op;
-  elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${opSymbol}</text>`);
-  x += fontSize * 0.6;
+    rows.forEach((item, idx) => {
+      const col = idx % 2;
+      const row = Math.floor(idx / 2);
+      const rowY = y + row * rowHeight;
+      let cursor = margin + col * colWidth;
 
-  // Right operand
-  const rightWidth = drawNumber(example.right, x, y, fontSize, elements);
-  x += rightWidth + gap;
+      content += `<text x="${cursor}" y="${rowY + 45}" font-size="32" font-family="Times New Roman">${item.index})</text>`;
+      cursor += 50;
 
-  // Equals
-  elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">=</text>`);
-  x += fontSize * 0.6;
+      const left = drawNumberSvg(item.example.left, cursor, rowY);
+      content += left.svg;
+      cursor += left.width + 22;
 
-  // Blank line for answer
-  const blankWidth = fontSize * 2.8;
-  elements.push(`<line x1="${x}" y1="${y + fontSize * 0.3}" x2="${x + blankWidth}" y2="${y + fontSize * 0.3}" stroke="#9ca3af" stroke-width="${fontSize * 0.07}"/>`);
+      content += `<text x="${cursor}" y="${rowY + 45}" font-size="32" font-family="Times New Roman">${svgEscape(item.example.op)}</text>`;
+      cursor += 34;
 
-  return { elements, width: x + blankWidth + gap };
-}
+      const right = drawNumberSvg(item.example.right, cursor, rowY);
+      content += right.svg;
+      cursor += right.width + 22;
 
-function toggleAllCheckboxes() {
-  const checkboxes = output.querySelectorAll('.example-checkbox');
-  allSelected = !allSelected;
-  checkboxes.forEach(cb => cb.checked = allSelected);
-  toggleAllBtn.textContent = allSelected ? 'Снять выделение' : 'Выделить все';
+      content += `<text x="${cursor}" y="${rowY + 45}" font-size="32" font-family="Times New Roman">=</text>`;
+      cursor += 34;
+
+      content += `<line x1="${cursor}" y1="${rowY + 46}" x2="${cursor + 150}" y2="${rowY + 46}" stroke="#9ca3af" stroke-width="2" />`;
+    });
+
+    const rowsCount = Math.ceil(rows.length / 2);
+    y += rowsCount * rowHeight + 26;
+  }
+
+  const height = Math.max(220, y + margin);
+  return `<?xml version="1.0" encoding="UTF-8"?>\n<svg xmlns="http://www.w3.org/2000/svg" width="${sheetWidth}" height="${height}" viewBox="0 0 ${sheetWidth} ${height}">${content}</svg>`;
 }
 
 async function copySvg() {
-  if (!output.innerHTML.trim()) {
-    render();
-  }
-
-  // Get all checked checkboxes and their data
-  const checkedBoxes = Array.from(output.querySelectorAll('.example-checkbox:checked'));
-
-  if (checkedBoxes.length === 0) {
-    copyBtn.textContent = 'Ничего не выбрано!';
+  const selected = getSelectedExamples();
+  if (!selected.length) {
+    copySvgBtn.textContent = 'Нет отмеченных примеров';
     setTimeout(() => {
-      copyBtn.textContent = 'Копировать SVG';
+      copySvgBtn.textContent = 'Копировать SVG отмеченных';
     }, 1300);
     return;
   }
 
-  // Get the actual examples from storage
-  const examplesToExport = [];
-  checkedBoxes.forEach(cb => {
-    const variant = cb.dataset.variant;
-    const index = parseInt(cb.dataset.index);
-    const key = `${variant}-${index}`;
-    if (generatedExamples[key]) {
-      examplesToExport.push({
-        variant,
-        index,
-        example: generatedExamples[key]
-      });
-    }
-  });
-
-  // SVG settings
-  const fontSize = 28;
-  const colWidth = 500;
-  const rowHeight = 60;
-  const padding = 40;
-  const headerHeight = 60;
-
-  // Group by variant for separate headers
-  const byVariant = {};
-  examplesToExport.forEach(item => {
-    if (!byVariant[item.variant]) {
-      byVariant[item.variant] = [];
-    }
-    byVariant[item.variant].push(item);
-  });
-
-  const svgs = [];
-
-  Object.keys(byVariant).sort().forEach(variantNum => {
-    const items = byVariant[variantNum];
-    const cols = 2;
-    const rows = Math.ceil(items.length / cols);
-    const width = colWidth * cols + padding * 2;
-    const height = headerHeight + rows * rowHeight + padding * 2;
-
-    let svgContent = '';
-
-    // Header
-    svgContent += `<text x="${padding}" y="${padding + fontSize * 0.9}" font-family="Times New Roman, serif" font-size="${fontSize * 1.3}" font-weight="bold" fill="#111827">Вариант ${variantNum}</text>`;
-
-    // Examples
-    items.forEach((item, i) => {
-      const col = i % cols;
-      const row = Math.floor(i / cols);
-      const x = padding + col * colWidth;
-      const y = headerHeight + padding + row * rowHeight;
-
-      const { elements } = generateExampleSvg(item.example, item.index, fontSize, x, y);
-      svgContent += elements.join('');
-    });
-
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <rect width="100%" height="100%" fill="#ffffff"/>
-      ${svgContent}
-    </svg>`;
-
-    svgs.push(svg);
-  });
-
-  const svgOutput = svgs.length === 1 ? svgs[0] : svgs.join('\n\n');
-
+  const svg = selectedExamplesToSvg(selected);
   try {
-    await navigator.clipboard.writeText(svgOutput);
-    copyBtn.textContent = `Скопировано (${checkedBoxes.length})!`;
+    await navigator.clipboard.writeText(svg);
+    copySvgBtn.textContent = 'SVG скопирован';
     setTimeout(() => {
-      copyBtn.textContent = 'Копировать SVG';
+      copySvgBtn.textContent = 'Копировать SVG отмеченных';
     }, 1300);
   } catch (e) {
-    copyBtn.textContent = 'Не удалось скопировать';
+    copySvgBtn.textContent = 'Не удалось скопировать';
     setTimeout(() => {
-      copyBtn.textContent = 'Копировать SVG';
+      copySvgBtn.textContent = 'Копировать SVG отмеченных';
     }, 1300);
   }
 }
 
+function downloadSvg() {
+  const selected = getSelectedExamples();
+  if (!selected.length) {
+    downloadSvgBtn.textContent = 'Нет отмеченных примеров';
+    setTimeout(() => {
+      downloadSvgBtn.textContent = 'Скачать SVG отмеченных';
+    }, 1300);
+    return;
+  }
+
+  const svg = selectedExamplesToSvg(selected);
+  const blob = new Blob([svg], { type: 'image/svg+xml;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `drobi-worksheet-${new Date().toISOString().slice(0, 10)}.svg`;
+  document.body.append(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+function toggleAllExamples(state) {
+  document.querySelectorAll('.example-pick').forEach((pick) => {
+    pick.checked = state;
+  });
+}
+
 generateBtn.addEventListener('click', render);
-toggleAllBtn.addEventListener('click', toggleAllCheckboxes);
-copyBtn.addEventListener('click', copySvg);
+copySvgBtn.addEventListener('click', copySvg);
+downloadSvgBtn.addEventListener('click', downloadSvg);
+selectAllBtn.addEventListener('click', () => toggleAllExamples(true));
+clearSelectionBtn.addEventListener('click', () => toggleAllExamples(false));
 
 render();
