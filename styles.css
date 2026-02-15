@@ -1,0 +1,178 @@
+:root {
+  --bg: #f3f4f8;
+  --card: #ffffff;
+  --text: #1f2937;
+  --muted: #6b7280;
+  --line: #111827;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: "Times New Roman", serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+.page {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 24px;
+}
+
+h1 {
+  margin: 0 0 8px;
+}
+
+.subtitle {
+  margin: 0 0 20px;
+  color: var(--muted);
+}
+
+.card {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 18px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.grid {
+  display: grid;
+  gap: 10px;
+}
+
+.two-col {
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+}
+
+.three-col {
+  margin-top: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+label {
+  font-size: 16px;
+}
+
+input[type="number"],
+select {
+  margin-top: 4px;
+  width: 100%;
+  padding: 8px;
+  font: inherit;
+}
+
+.actions {
+  margin-top: 14px;
+  display: flex;
+  gap: 10px;
+}
+
+button {
+  padding: 10px 16px;
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  background: #fff;
+}
+
+.hint {
+  margin-top: 10px;
+  color: var(--muted);
+}
+
+.output {
+  margin-top: 22px;
+  display: grid;
+  gap: 20px;
+}
+
+.variant {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+}
+
+.variant h3 {
+  margin-top: 0;
+}
+
+.examples {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 14px 28px;
+}
+
+.example {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  line-height: 1;
+  font-size: 28px;
+}
+
+.frac {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 1.7em;
+}
+
+.frac .numerator,
+.frac .denominator {
+  display: block;
+  padding: 0 0.2em;
+  text-align: center;
+}
+
+.frac .bar {
+  display: block;
+  width: 100%;
+  border-top: 2px solid var(--line);
+  margin: 0.06em 0;
+}
+
+.mixed {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.18em;
+}
+
+.blank {
+  display: inline-block;
+  border-bottom: 2px solid #9ca3af;
+  width: 4.4em;
+  margin-left: 4px;
+}
+
+@media print {
+  body {
+    background: #fff;
+  }
+
+  .controls {
+    display: none;
+  }
+
+  .page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .variant {
+    box-shadow: none;
+    border: none;
+    page-break-after: always;
+  }
+}

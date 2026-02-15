@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Генератор примеров по дробям (5 класс)</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="page">
+    <header>
+      <h1>Генератор примеров по математике (5 класс)</h1>
+      <p class="subtitle">Темы: сложение/вычитание дробей и смешанных чисел, умножение и деление дробных чисел.</p>
+    </header>
+
+    <section class="controls card">
+      <h2>Настройки</h2>
+
+      <div class="grid two-col">
+        <label class="checkbox">
+          <input type="checkbox" value="fractions_add_sub" checked />
+          <span>Сложение и вычитание обыкновенных дробей</span>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" value="mixed_add_sub" checked />
+          <span>Сложение и вычитание смешанных чисел</span>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" value="fractions_mul" checked />
+          <span>Умножение обыкновенных дробей</span>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" value="mixed_mul" checked />
+          <span>Умножение смешанных чисел</span>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" value="fractions_div" checked />
+          <span>Деление обыкновенных дробей</span>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" value="mixed_div" checked />
+          <span>Деление смешанных чисел</span>
+        </label>
+      </div>
+
+      <div class="grid three-col params">
+        <label>
+          Количество примеров
+          <input id="count" type="number" min="1" max="120" value="24" />
+        </label>
+
+        <label>
+          Количество вариантов
+          <input id="variants" type="number" min="1" max="12" value="2" />
+        </label>
+
+        <label>
+          Действия
+          <select id="operationMode">
+            <option value="auto">Авто (по теме)</option>
+            <option value="all">Все действия (+, −, ×, :)</option>
+            <option value="addsub">Только + и −</option>
+            <option value="muldiv">Только × и :</option>
+          </select>
+        </label>
+      </div>
+
+      <div class="actions">
+        <button id="generateBtn" type="button">Сгенерировать</button>
+        <button id="copyBtn" type="button">Копировать HTML</button>
+      </div>
+
+      <p class="hint">Скопированный HTML можно вставлять в графические редакторы / редакторы рабочих листов.</p>
+    </section>
+
+    <section id="output" class="output"></section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>
