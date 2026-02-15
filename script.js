@@ -5,6 +5,10 @@ const operationMode = document.getElementById('operationMode');
 const output = document.getElementById('output');
 const generateBtn = document.getElementById('generateBtn');
 const copyBtn = document.getElementById('copyBtn');
+const toggleAllBtn = document.getElementById('toggleAllBtn');
+
+let currentVariant = 0;
+let allSelected = true;
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -131,12 +135,15 @@ function generateByTopic(topic) {
 
 function buildExampleHtml(index, ex) {
   return `<div class="example">
-    <span>${index})</span>
-    ${formatNumberHtml(ex.left)}
-    <span>${ex.op}</span>
-    ${formatNumberHtml(ex.right)}
-    <span>=</span>
-    <span class="blank"></span>
+    <input type="checkbox" class="example-checkbox" data-variant="${currentVariant}" data-index="${index}" checked />
+    <span class="example-wrapper">
+      <span>${index})</span>
+      ${formatNumberHtml(ex.left)}
+      <span>${ex.op}</span>
+      ${formatNumberHtml(ex.right)}
+      <span>=</span>
+      <span class="blank"></span>
+    </span>
   </div>`;
 }
 
@@ -144,6 +151,10 @@ function render() {
   const selectedTopics = topicInputs.filter((i) => i.checked).map((i) => i.value);
   const count = Math.max(1, Math.min(120, Number(countInput.value) || 1));
   const variants = Math.max(1, Math.min(12, Number(variantsInput.value) || 1));
+
+  // Reset toggle button state
+  allSelected = true;
+  toggleAllBtn.textContent = 'Снять выделение';
 
   if (!selectedTopics.length) {
     output.innerHTML = '<div class="variant"><p>Выберите хотя бы один тип примеров.</p></div>';
@@ -153,6 +164,7 @@ function render() {
   let html = '';
 
   for (let v = 1; v <= variants; v += 1) {
+    currentVariant = v;
     let examplesHtml = '';
     for (let i = 1; i <= count; i += 1) {
       const topic = selectedTopics[randInt(0, selectedTopics.length - 1)];
@@ -257,14 +269,43 @@ function generateExampleSvg(example, index, fontSize) {
   return { elements, width: x + blankWidth + gap };
 }
 
+function toggleAllCheckboxes() {
+  const checkboxes = output.querySelectorAll('.example-checkbox');
+  allSelected = !allSelected;
+  checkboxes.forEach(cb => cb.checked = allSelected);
+  toggleAllBtn.textContent = allSelected ? 'Снять выделение' : 'Выделить все';
+}
+
 async function copySvg() {
   if (!output.innerHTML.trim()) {
     render();
   }
 
+  // Get all checked checkboxes and their data
+  const checkedBoxes = Array.from(output.querySelectorAll('.example-checkbox:checked'));
+
+  if (checkedBoxes.length === 0) {
+    copyBtn.textContent = 'Ничего не выбрано!';
+    setTimeout(() => {
+      copyBtn.textContent = 'Копировать SVG';
+    }, 1300);
+    return;
+  }
+
+  // Group checked examples by variant
+  const examplesByVariant = {};
+  checkedBoxes.forEach(cb => {
+    const variant = cb.dataset.variant;
+    const index = parseInt(cb.dataset.index);
+    if (!examplesByVariant[variant]) {
+      examplesByVariant[variant] = [];
+    }
+    examplesByVariant[variant].push(index);
+  });
+
+  // Regenerate the checked examples for each variant
   const selectedTopics = topicInputs.filter((i) => i.checked).map((i) => i.value);
-  const count = Math.max(1, Math.min(120, Number(countInput.value) || 1));
-  const variants = Math.max(1, Math.min(12, Number(variantsInput.value) || 1));
+  const seed = Date.now(); // Use fixed seed for reproducibility
 
   const fontSize = 28;
   const colWidth = 450;
@@ -274,25 +315,28 @@ async function copySvg() {
 
   const svgs = [];
 
-  for (let v = 1; v <= variants; v += 1) {
+  Object.keys(examplesByVariant).sort().forEach(variantNum => {
+    const indices = examplesByVariant[variantNum].sort((a, b) => a - b);
     const examples = [];
-    for (let i = 1; i <= count; i += 1) {
+
+    // Regenerate specific examples using consistent random
+    indices.forEach(index => {
       const topic = selectedTopics[randInt(0, selectedTopics.length - 1)];
-      examples.push(generateByTopic(topic));
-    }
+      examples.push({ index, ex: generateByTopic(topic) });
+    });
 
     const cols = 2;
-    const rows = Math.ceil(count / cols);
+    const rows = Math.ceil(examples.length / cols);
     const width = colWidth * cols + padding * 2;
     const height = headerHeight + rows * rowHeight + padding;
 
     let svgContent = '';
 
     // Header
-    svgContent += `<text x="${padding}" y="${padding + fontSize}" font-family="Times New Roman, serif" font-size="${fontSize * 1.2}" font-weight="bold" fill="#111827">Вариант ${v}</text>`;
+    svgContent += `<text x="${padding}" y="${padding + fontSize}" font-family="Times New Roman, serif" font-size="${fontSize * 1.2}" font-weight="bold" fill="#111827">Вариант ${variantNum}</text>`;
 
     // Examples
-    examples.forEach((ex, i) => {
+    examples.forEach(({ ex }, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const x = padding + col * colWidth;
@@ -308,13 +352,13 @@ async function copySvg() {
     </svg>`;
 
     svgs.push(svg);
-  }
+  });
 
-  const svgOutput = variants === 1 ? svgs[0] : svgs.join('\n\n');
+  const svgOutput = svgs.length === 1 ? svgs[0] : svgs.join('\n\n');
 
   try {
     await navigator.clipboard.writeText(svgOutput);
-    copyBtn.textContent = 'Скопировано!';
+    copyBtn.textContent = `Скопировано (${checkedBoxes.length})!`;
     setTimeout(() => {
       copyBtn.textContent = 'Копировать SVG';
     }, 1300);
@@ -327,6 +371,7 @@ async function copySvg() {
 }
 
 generateBtn.addEventListener('click', render);
+toggleAllBtn.addEventListener('click', toggleAllCheckboxes);
 copyBtn.addEventListener('click', copySvg);
 
 render();

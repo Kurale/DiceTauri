@@ -156,6 +156,23 @@ button {
   margin-left: 4px;
 }
 
+.example-checkbox {
+  margin-right: 8px;
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.example-checkbox:checked + span {
+  opacity: 1;
+}
+
+.example-wrapper {
+  display: flex;
+  align-items: center;
+}
+
 @media print {
   body {
     background: #fff;
