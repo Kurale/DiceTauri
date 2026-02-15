@@ -9,6 +9,7 @@ const toggleAllBtn = document.getElementById('toggleAllBtn');
 
 let currentVariant = 0;
 let allSelected = true;
+const generatedExamples = {}; // Хранилище сгенерированных примеров: { "variant-index": example }
 
 function randInt(min, max) {
   return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -135,15 +136,13 @@ function generateByTopic(topic) {
 
 function buildExampleHtml(index, ex) {
   return `<div class="example">
+    <span>${index})</span>
+    ${formatNumberHtml(ex.left)}
+    <span>${ex.op}</span>
+    ${formatNumberHtml(ex.right)}
+    <span>=</span>
+    <span class="blank"></span>
     <input type="checkbox" class="example-checkbox" data-variant="${currentVariant}" data-index="${index}" checked />
-    <span class="example-wrapper">
-      <span>${index})</span>
-      ${formatNumberHtml(ex.left)}
-      <span>${ex.op}</span>
-      ${formatNumberHtml(ex.right)}
-      <span>=</span>
-      <span class="blank"></span>
-    </span>
   </div>`;
 }
 
@@ -152,9 +151,10 @@ function render() {
   const count = Math.max(1, Math.min(120, Number(countInput.value) || 1));
   const variants = Math.max(1, Math.min(12, Number(variantsInput.value) || 1));
 
-  // Reset toggle button state
+  // Reset toggle button state and clear storage
   allSelected = true;
   toggleAllBtn.textContent = 'Снять выделение';
+  Object.keys(generatedExamples).forEach(key => delete generatedExamples[key]);
 
   if (!selectedTopics.length) {
     output.innerHTML = '<div class="variant"><p>Выберите хотя бы один тип примеров.</p></div>';
@@ -169,6 +169,8 @@ function render() {
     for (let i = 1; i <= count; i += 1) {
       const topic = selectedTopics[randInt(0, selectedTopics.length - 1)];
       const ex = generateByTopic(topic);
+      // Сохраняем пример для экспорта
+      generatedExamples[`${v}-${i}`] = ex;
       examplesHtml += buildExampleHtml(i, ex);
     }
 
@@ -196,74 +198,77 @@ function measureNumber(num) {
 }
 
 // Helper: Draw a number in SVG, returns width used
-function drawNumber(num, x, y, fontSize, elements) {
+function drawNumber(num, baseX, baseY, fontSize, elements) {
   if (num.type === 'whole') {
-    elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${num.value}</text>`);
-    return String(num.value).length * 0.6 * fontSize / 28;
+    elements.push(`<text x="${baseX}" y="${baseY}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${num.value}</text>`);
+    return String(num.value).length * fontSize * 0.55;
   }
 
   if (num.type === 'fraction') {
-    const numWidth = String(num.n).length * 0.6;
-    const denWidth = String(num.d).length * 0.6;
-    const width = Math.max(numWidth, denWidth) * fontSize / 28;
-    const numY = y - fontSize * 0.25;
-    const denY = y + fontSize * 0.5;
-    const barY = y + fontSize * 0.05;
+    const numWidth = String(num.n).length * fontSize * 0.5;
+    const denWidth = String(num.d).length * fontSize * 0.5;
+    const width = Math.max(numWidth, denWidth) + fontSize * 0.2;
+    const numY = baseY - fontSize * 0.25;
+    const denY = baseY + fontSize * 0.5;
+    const barY = baseY + fontSize * 0.05;
 
-    elements.push(`<text x="${x + width / 2}" y="${numY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.n}</text>`);
-    elements.push(`<line x1="${x}" y1="${barY}" x2="${x + width}" y2="${barY}" stroke="#111827" stroke-width="${fontSize * 0.07}"/>`);
-    elements.push(`<text x="${x + width / 2}" y="${denY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.d}</text>`);
-    return width + 0.4 * fontSize / 28;
+    elements.push(`<text x="${baseX + width / 2}" y="${numY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.n}</text>`);
+    elements.push(`<line x1="${baseX}" y1="${barY}" x2="${baseX + width}" y2="${barY}" stroke="#111827" stroke-width="${fontSize * 0.07}"/>`);
+    elements.push(`<text x="${baseX + width / 2}" y="${denY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.d}</text>`);
+    return width;
   }
 
   // mixed
-  const wholeWidth = String(num.whole).length * 0.6 * fontSize / 28;
-  elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${num.whole}</text>`);
+  const wholeWidth = String(num.whole).length * fontSize * 0.55;
+  elements.push(`<text x="${baseX}" y="${baseY}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${num.whole}</text>`);
 
-  const fracX = x + wholeWidth + 0.2 * fontSize / 28;
-  const numWidth = String(num.n).length * 0.6;
-  const denWidth = String(num.d).length * 0.6;
-  const width = Math.max(numWidth, denWidth) * fontSize / 28;
-  const numY = y - fontSize * 0.25;
-  const denY = y + fontSize * 0.5;
-  const barY = y + fontSize * 0.05;
+  const fracX = baseX + wholeWidth + fontSize * 0.15;
+  const numWidth = String(num.n).length * fontSize * 0.5;
+  const denWidth = String(num.d).length * fontSize * 0.5;
+  const width = Math.max(numWidth, denWidth) + fontSize * 0.2;
+  const numY = baseY - fontSize * 0.25;
+  const denY = baseY + fontSize * 0.5;
+  const barY = baseY + fontSize * 0.05;
 
   elements.push(`<text x="${fracX + width / 2}" y="${numY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.n}</text>`);
   elements.push(`<line x1="${fracX}" y1="${barY}" x2="${fracX + width}" y2="${barY}" stroke="#111827" stroke-width="${fontSize * 0.07}"/>`);
   elements.push(`<text x="${fracX + width / 2}" y="${denY}" font-family="Times New Roman, serif" font-size="${fontSize * 0.9}" fill="#111827" text-anchor="middle">${num.d}</text>`);
 
-  return wholeWidth + 0.2 * fontSize / 28 + width + 0.4 * fontSize / 28;
+  return wholeWidth + fontSize * 0.15 + width;
 }
 
-function generateExampleSvg(example, index, fontSize) {
-  const gap = 0.4 * fontSize / 28;
-  let x = 0;
-  const y = fontSize;
+function generateExampleSvg(example, index, fontSize, baseX, baseY) {
+  const gap = fontSize * 0.3;
+  let x = baseX;
+  const y = baseY;
 
   const elements = [];
 
   // Index number
   const indexText = `${index})`;
+  const indexWidth = String(index).length * fontSize * 0.55;
   elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${indexText}</text>`);
-  x += String(index).length * 0.6 * fontSize / 28 + 1.5 * fontSize / 28;
+  x += indexWidth + gap;
 
   // Left operand
-  x += drawNumber(example.left, x, y, fontSize, elements);
+  const leftWidth = drawNumber(example.left, x, y, fontSize, elements);
+  x += leftWidth + gap;
 
   // Operator
   const opSymbol = example.op;
   elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">${opSymbol}</text>`);
-  x += 1.2 * fontSize / 28;
+  x += fontSize * 0.6;
 
   // Right operand
-  x += drawNumber(example.right, x, y, fontSize, elements);
+  const rightWidth = drawNumber(example.right, x, y, fontSize, elements);
+  x += rightWidth + gap;
 
   // Equals
   elements.push(`<text x="${x}" y="${y}" font-family="Times New Roman, serif" font-size="${fontSize}" fill="#111827">=</text>`);
-  x += 1.2 * fontSize / 28;
+  x += fontSize * 0.6;
 
   // Blank line for answer
-  const blankWidth = 4.4 * fontSize / 28;
+  const blankWidth = fontSize * 2.8;
   elements.push(`<line x1="${x}" y1="${y + fontSize * 0.3}" x2="${x + blankWidth}" y2="${y + fontSize * 0.3}" stroke="#9ca3af" stroke-width="${fontSize * 0.07}"/>`);
 
   return { elements, width: x + blankWidth + gap };
@@ -292,58 +297,60 @@ async function copySvg() {
     return;
   }
 
-  // Group checked examples by variant
-  const examplesByVariant = {};
+  // Get the actual examples from storage
+  const examplesToExport = [];
   checkedBoxes.forEach(cb => {
     const variant = cb.dataset.variant;
     const index = parseInt(cb.dataset.index);
-    if (!examplesByVariant[variant]) {
-      examplesByVariant[variant] = [];
+    const key = `${variant}-${index}`;
+    if (generatedExamples[key]) {
+      examplesToExport.push({
+        variant,
+        index,
+        example: generatedExamples[key]
+      });
     }
-    examplesByVariant[variant].push(index);
   });
 
-  // Regenerate the checked examples for each variant
-  const selectedTopics = topicInputs.filter((i) => i.checked).map((i) => i.value);
-  const seed = Date.now(); // Use fixed seed for reproducibility
-
+  // SVG settings
   const fontSize = 28;
-  const colWidth = 450;
-  const rowHeight = 70;
-  const padding = 30;
-  const headerHeight = 50;
+  const colWidth = 500;
+  const rowHeight = 60;
+  const padding = 40;
+  const headerHeight = 60;
+
+  // Group by variant for separate headers
+  const byVariant = {};
+  examplesToExport.forEach(item => {
+    if (!byVariant[item.variant]) {
+      byVariant[item.variant] = [];
+    }
+    byVariant[item.variant].push(item);
+  });
 
   const svgs = [];
 
-  Object.keys(examplesByVariant).sort().forEach(variantNum => {
-    const indices = examplesByVariant[variantNum].sort((a, b) => a - b);
-    const examples = [];
-
-    // Regenerate specific examples using consistent random
-    indices.forEach(index => {
-      const topic = selectedTopics[randInt(0, selectedTopics.length - 1)];
-      examples.push({ index, ex: generateByTopic(topic) });
-    });
-
+  Object.keys(byVariant).sort().forEach(variantNum => {
+    const items = byVariant[variantNum];
     const cols = 2;
-    const rows = Math.ceil(examples.length / cols);
+    const rows = Math.ceil(items.length / cols);
     const width = colWidth * cols + padding * 2;
-    const height = headerHeight + rows * rowHeight + padding;
+    const height = headerHeight + rows * rowHeight + padding * 2;
 
     let svgContent = '';
 
     // Header
-    svgContent += `<text x="${padding}" y="${padding + fontSize}" font-family="Times New Roman, serif" font-size="${fontSize * 1.2}" font-weight="bold" fill="#111827">Вариант ${variantNum}</text>`;
+    svgContent += `<text x="${padding}" y="${padding + fontSize * 0.9}" font-family="Times New Roman, serif" font-size="${fontSize * 1.3}" font-weight="bold" fill="#111827">Вариант ${variantNum}</text>`;
 
     // Examples
-    examples.forEach(({ ex }, i) => {
+    items.forEach((item, i) => {
       const col = i % cols;
       const row = Math.floor(i / cols);
       const x = padding + col * colWidth;
       const y = headerHeight + padding + row * rowHeight;
 
-      const { elements } = generateExampleSvg(ex, i + 1, fontSize);
-      svgContent += elements.map(el => el.replace(/x="([^"]+)"/, `x="${x + parseFloat(el.match(/x="([^"]+)"/)?.[1] || 0) - (col === 0 ? 0 : 0)}"`).replace(/y="([^"]+)"/, `y="${y + (parseFloat(el.match(/y="([^"]+)"/)?.[1] || 0) - fontSize)}"`)).join('');
+      const { elements } = generateExampleSvg(item.example, item.index, fontSize, x, y);
+      svgContent += elements.join('');
     });
 
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
