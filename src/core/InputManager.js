@@ -8,12 +8,21 @@ const DEFAULT_BINDINGS = {
 
 /** @public */
 export class InputManager {
+  #onKeyDown = (event) => {
+    if (!this.pressed.has(event.code)) {
+      this.justPressed.add(event.code);
+    }
+    this.pressed.add(event.code);
+  };
+
+  #onKeyUp = (event) => {
+    this.pressed.delete(event.code);
+  };
+
   constructor(bindings = DEFAULT_BINDINGS) {
     this.bindings = bindings;
     this.pressed = new Set();
     this.justPressed = new Set();
-    this.#onKeyDown = this.#onKeyDown.bind(this);
-    this.#onKeyUp = this.#onKeyUp.bind(this);
   }
 
   attach() {
@@ -39,16 +48,5 @@ export class InputManager {
 
   endFrame() {
     this.justPressed.clear();
-  }
-
-  #onKeyDown(event) {
-    if (!this.pressed.has(event.code)) {
-      this.justPressed.add(event.code);
-    }
-    this.pressed.add(event.code);
-  }
-
-  #onKeyUp(event) {
-    this.pressed.delete(event.code);
   }
 }
